@@ -109,7 +109,6 @@ def server(input, output, session):
 
     # --- HELPERS ---
     def get_metric_config(metric):
-        # Přesné mapování pro zobrazení v legendě
         m_info = {
             "kge": "Kling-Gupta Eff.",
             "r": "Correlation",
@@ -143,7 +142,7 @@ def server(input, output, session):
             if val <= threshold: return color
         return cfg["bins"][-1][1]
 
-    # --- MAP ---
+    # --- MAP LOGIC ---
     @render_widget
     def map_a():
         m = L.Map(center=[48.9, 16.0], zoom=9, scroll_wheel_zoom=True, zoom_control=False)
@@ -229,15 +228,91 @@ def server(input, output, session):
             )
         except: return ui.div("Select a layer")
 
-    @render.text
-    def current_date():
-        return f"Date: {time_values[input.time_idx()].strftime('%Y-%m-%d')}"
-
-    # --- DASHBOARDS & PLOTS (Omitted for brevity, keep your original ones) ---
+    # --- STATION DASHBOARD & PLOTS ---
     @render.ui
     def st_dashboard():
         sid = selected_st_id()
-        row = STATIONS_SUMMARY[STATIONS_SUMMARY['ID'].astype(str) == sid].iloc[0]
-        return ui.div(ui.h3(f"Station: {sid}"), ui.value_box("KGE", f"{row['KGE']:.3f}"))
+        if not sid: return ui.div("No station selected")
+        
+        # Načtení řádku se statistikami
+        df_sub = STATIONS_SUMMARY[STATIONS_SUMMARY['ID'].astype(str) == sid]
+        if df_sub.empty: return ui.div(f"No data for station {sid}")
+        row = df_sub.iloc[0]
+        
+        # Výpočet barev boxů přesně podle naší legendy
+        # Používáme klíče 'kge', 'r', 'beta', 'gamma' pro barvy
+        c_kge  = _get_color("kge", row['KGE'])
+        c_corr = _get_color("r", row['Correlation'])
+        c_bias = _get_color("beta", row['Bias'])
+        c_var  = _get_color("gamma", row['Variability'])
+
+        # Styl pro vynucení černé barvy textu a barevného pozadí
+        def box_style(color):
+            return f"background-color: {color} !important; color: black !important;"
+
+        return ui.div(
+            ui.h3(f"Station Analysis: {sid}", style="font-weight: bold; margin-bottom: 15px;"),
+            
+            # Horní řada: Čtyři barevné boxy (vše černým písmem)
+            ui.layout_column_wrap(
+                ui.value_box("KGE", f"{row['KGE']:.3f}", style=box_style(c_kge)),
+                ui.value_box("Correlation", f"{row['Correlation']:.3f}", style=box_style(c_corr)),
+                ui.value_box("Bias", f"{row['Bias']:.3f}", style=box_style(c_bias)),
+                ui.value_box("Variability", f"{row['Variability']:.3f}", style=box_style(c_var)),
+                width=1/4, fill=False
+            ),
+            
+            ui.hr(),
+            
+            # Dolní řada: Grafy (nezapomenout na output_plot!)
+            ui.layout_column_wrap(
+                ui.card(ui.card_header("Seasonal Cycle"), ui.output_plot("plot_seasonal")),
+                ui.card(ui.card_header("Flow Duration Curve"), ui.output_plot("plot_fdc")),
+                width=1/2
+            )
+        )
+
+    @render.plot
+    def plot_seasonal():
+        sid = selected_st_id()
+        path = os.path.join(DATA_PATH, "evaluated_data/plots", f"{sid}_seasonal.csv")
+        if not os.path.exists(path): return None
+        df = pd.read_csv(path, index_col=0)
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.plot(df.index, df['Qobs'], 'k-o', label="Observed")
+        ax.plot(df.index, df['Qrouted'], 'r--o', label="Simulated")
+        ax.set_ylabel("Discharge [m3/s]"); ax.set_xlabel("Month")
+        ax.legend(); ax.grid(True, alpha=0.3)
+        return fig
+
+    @render.plot
+    def plot_fdc():
+        sid = selected_st_id()
+        path = os.path.join(DATA_PATH, "evaluated_data/plots", f"{sid}_fdc.csv")
+        if not os.path.exists(path): return None
+        df = pd.read_csv(path)
+        fig, ax = plt.subplots(figsize=(8, 5))
+        ax.plot(df['exceedance'], df['Qobs'], 'k-', label="Observed")
+        ax.plot(df['exceedance'], df['Qsim'], 'r--', label="Simulated")
+        ax.set_yscale('log'); ax.set_ylabel("Discharge [m3/s]"); ax.set_xlabel("Exceedance Probability")
+        ax.legend(); ax.grid(True, alpha=0.3)
+        return fig
+
+    # --- RASTER TIME SERIES & DATE ---
+    @render.plot
+    def raster_ts_plot():
+        if not last_click_coords(): return None
+        lat, lon = last_click_coords()
+        prefix, var = input.active_layer().split(":")
+        ds = ds_mhm_stats if prefix == "mhm" else ds_mrm_stats
+        data = ds[var].sel(lat=lat, lon=lon, method="nearest").compute()
+        fig, ax = plt.subplots(figsize=(10, 4))
+        data.plot(ax=ax, color="#2c3e50")
+        ax.set_title(f"Grid Cell: {lat:.3f}N, {lon:.3f}E")
+        return fig
+
+    @render.text
+    def current_date():
+        return f"Date: {time_values[input.time_idx()].strftime('%Y-%m-%d')}"
 
 app = App(app_ui, server)
