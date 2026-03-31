@@ -1,0 +1,20 @@
+# Python virtuální prostředí a mezipaměť
+.venv/
+__pycache__/
+*.pyc
+
+# DATA - Obří rastry a Zarr (Kritické)
+*.nc
+*.zarr/
+
+# SLOŽKY S MEZIVÝSLEDKY A ARCHIVY (Tohle ti tam dělalo ten nepořádek)
+priprava_server/
+vystupy/
+pozorovani/
+*.zip
+*.7z
+
+# KONFIGURACE EDITORŮ
+.vscode/
+.idea/
+.DS_Store

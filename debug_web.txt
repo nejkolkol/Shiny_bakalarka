@@ -1,0 +1,112 @@
+[kolar.v@shiny ~]$ curl http://127.0.0.1:28543
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <script type="application/html-dependencies">requirejs[2.3.6];jquery[3.6.0];shiny[1.5.1];shiny-busy-indicators[1.5.1];shiny-devmode[1.5.1];bootstrap[5.3.1];bslib-components[0.9.0.9002];ionrangeslider[2.3.1];strftime[0.9.2];bootstrap-datepicker[1.9.0];selectize[0.12.6];headcontent_496a5a4acc46d0c6018d05cfbfa51efa8070e56e[0.0];ipywidget-output-binding[0.7.1];headcontent_64c93189711f8969640e7b8f06f689fadea80c2e[0.0];htmltools-fill[0.5.8.9000]</script>
+    <script src="lib/requirejs-2.3.6/require.min.js"></script>
+    <script src="lib/jquery-3.6.0/jquery-3.6.0.min.js"></script>
+    <script src="lib/shiny-1.5.1/shiny.js"></script>
+    <link href="lib/shiny-busy-indicators-1.5.1/busy-indicators.css" rel="stylesheet"/>
+    <script>document.documentElement.dataset.shinyBusySpinners = true;document.documentElement.dataset.shinyBusyPulse = true;</script>
+    <script>window.__SHINY_DEV_MODE__ = true;</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <link href="lib/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet"/>
+    <script src="lib/bootstrap-5.3.1/bootstrap.bundle.min.js"></script>
+    <script src="lib/bslib-components-0.9.0.9002/components.min.js"></script>
+    <script src="lib/bslib-components-0.9.0.9002/web-components.min.js" type="module"></script>
+    <script src="lib/ionrangeslider-2.3.1/js/ion.rangeSlider.min.js"></script>
+    <script src="lib/strftime-0.9.2/strftime-min.js"></script>
+    <script src="lib/bootstrap-datepicker-1.9.0/js/bootstrap-datepicker.min.js"></script>
+    <script>(function() { var datepicker = $.fn.datepicker.noConflict(); $.fn.bsDatepicker = datepicker; })();</script>
+    <script src="lib/selectize-0.12.6/js/selectize.min.js"></script>
+    <script src="lib/selectize-0.12.6/accessibility/js/selectize-plugin-a11y.min.js"></script>
+    <style>html { height: 100%; }</style>
+    <link href="lib/ipywidget-output-binding-0.7.1/shinywidgets.css" rel="stylesheet"/>
+    <script src="lib/ipywidget-output-binding-0.7.1/libembed-amd.js"></script>
+    <script src="lib/ipywidget-output-binding-0.7.1/output.js"></script>
+    <script data-jupyter-widgets-cdn="https://cdn.jsdelivr.net/npm/"></script>
+    <link href="lib/htmltools-fill-0.5.8.9000/fill.css" rel="stylesheet"/>
+  </head>
+  <body class="bslib-page-fill bslib-gap-spacing bslib-flow-mobile html-fill-container">
+    <style>
+        html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; font-family: sans-serif; }
+        #map_a { height: 100vh !important; width: 100vw !important; position: absolute; }
+        .floating-menu { position: absolute; background: rgba(255,255,255,0.95); padding: 12px; border-radius: 5px; z-index: 1000; border: 1px solid #ccc; }
+        .section-title { font-weight: bold; margin-bottom: 5px; border-bottom: 1px solid #ddd; padding-bottom: 3px; margin-top: 10px; font-size: 13px; }
+        .legend-row { display: flex; width: 100%; height: 15px; border: 1px solid #666; margin-top: 5px; }
+        .legend-tick { flex: 1; height: 100%; }
+        .legend-labels { display: flex; justify-content: space-between; font-size: 10px; margin-top: 2px; color: #444; }
+    </style>
+    <div>
+      <div id="map_a" class="shiny-ipywidget-output shiny-report-size shiny-report-theme html-fill-item html-fill-container"></div>
+      <div class="floating-menu" style="top: 20px; left: 20px; width: 320px;">
+        <div style="font-size: 16px; font-weight: bold;">mHM/mRM Explorer</div>
+        <div class="section-title">Časová osa</div>
+        <div class="form-group shiny-input-container" style="width:100%;">
+          <label class="control-label shiny-label-null" id="time_idx-label" for="time_idx"></label><input class="js-range-slider" id="time_idx" data-skin="shiny" data-min="0" data-max="541" data-from="0" data-step="1" data-grid="false" data-grid-snap="false" data-prettify-separator="," data-prettify-enabled="true" data-keyboard="true" data-data-type="number"/>
+        </div>
+        <div id="current_date" class="shiny-text-output"></div>
+        <hr/>
+        <div class="section-title">Legenda profilů</div>
+        <div class="shiny-html-output" id="legend_vector"></div>
+      </div>
+      <div class="floating-menu" style="top: 20px; right: 20px; width: 250px;">
+        <div class="section-title">Nastavení</div>
+        <div class="form-group shiny-input-container">
+          <label class="control-label" id="active_layer-label" for="active_layer">Rastr:</label>
+          <div>
+            <select class="shiny-input-select form-select" id="active_layer">              <option value="mhm:interception">mHM: interception</option>
+              <option value="mhm:snowpack">mHM: snowpack</option>
+              <option value="mhm:SWC_L01">mHM: SWC_L01</option>
+              <option value="mhm:SWC_L02">mHM: SWC_L02</option>
+              <option value="mhm:SWC_L03">mHM: SWC_L03</option>
+              <option value="mhm:SWC_L04">mHM: SWC_L04</option>
+              <option value="mhm:SWC_L05">mHM: SWC_L05</option>
+              <option value="mhm:SWC_L06">mHM: SWC_L06</option>
+              <option value="mhm:SM_L01">mHM: SM_L01</option>
+              <option value="mhm:SM_L02">mHM: SM_L02</option>
+              <option value="mhm:SM_L03">mHM: SM_L03</option>
+              <option value="mhm:SM_L04">mHM: SM_L04</option>
+              <option value="mhm:SM_L05">mHM: SM_L05</option>
+              <option value="mhm:SM_L06">mHM: SM_L06</option>
+              <option value="mhm:SM_Lall">mHM: SM_Lall</option>
+              <option value="mhm:sealedSTW">mHM: sealedSTW</option>
+              <option value="mhm:unsatSTW">mHM: unsatSTW</option>
+              <option value="mhm:satSTW">mHM: satSTW</option>
+              <option value="mhm:PET">mHM: PET</option>
+              <option value="mhm:aET">mHM: aET</option>
+              <option value="mhm:Q">mHM: Q</option>
+              <option value="mhm:QD">mHM: QD</option>
+              <option value="mhm:QIf">mHM: QIf</option>
+              <option value="mhm:QIs">mHM: QIs</option>
+              <option value="mhm:QB">mHM: QB</option>
+              <option value="mhm:recharge">mHM: recharge</option>
+              <option value="mhm:aET_L01">mHM: aET_L01</option>
+              <option value="mhm:aET_L02">mHM: aET_L02</option>
+              <option value="mhm:aET_L03">mHM: aET_L03</option>
+              <option value="mhm:aET_L04">mHM: aET_L04</option>
+              <option value="mhm:aET_L05">mHM: aET_L05</option>
+              <option value="mhm:aET_L06">mHM: aET_L06</option>
+              <option value="mhm:preEffect">mHM: preEffect</option>
+              <option value="mhm:Qsm">mHM: Qsm</option>
+              <option value="mrm:Qrouted" selected="">mRM: Qrouted</option></select>
+          </div>
+        </div>
+        <div class="form-group shiny-input-container">
+          <div class="checkbox">
+            <label><input id="show_stations" type="checkbox" checked="checked" class="shiny-input-checkbox"/> <span>Zobrazit profily</span></label>
+          </div>
+        </div>
+        <div class="form-group shiny-input-container">
+          <label class="control-label" id="marker_metric-label" for="marker_metric">Metrika bodů:</label>
+          <div>
+            <select class="shiny-input-select form-select" id="marker_metric">              <option value="kge" selected="">KGE</option>
+              <option value="r">Korelace</option>
+              <option value="beta">Bias</option>
+              <option value="gamma">Variabilita</option></select>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
