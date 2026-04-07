@@ -41,7 +41,7 @@ time_values = pd.to_datetime(ds_mhm_map.time.values) if ds_mhm_map is not None e
 bounds = ((float(ds_mhm_map.lat.min()), float(ds_mhm_map.lon.min())), (float(ds_mhm_map.lat.max()), float(ds_mhm_map.lon.max()))) if ds_mhm_map is not None else ((48.5, 15.0), (49.5, 16.5))
 
 # ============================================================
-# 2. UI DEFINITION (Oprava pozicování a mezer)
+# 2. UI DEFINITION (Fixed positioning and spacing)
 # ============================================================
 app_ui = ui.page_fillable(
     ui.tags.style("""
@@ -60,7 +60,7 @@ app_ui = ui.page_fillable(
         
         .section-title { font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 12px; font-size: 11px; color: #555; text-transform: uppercase; }
 
-        /* Sblížení legend (gap: 5px) */
+        /* Align legends (gap: 5px) */
         .legend-wrapper { display: flex; gap: 5px; align-items: flex-start; margin-top: 10px; }
         .legend-column { flex: 1; }
         
@@ -86,7 +86,7 @@ app_ui = ui.page_fillable(
                 ui.div(ui.output_ui("raster_legend_ui"), class_="legend-column"),
                 class_="legend-wrapper"
             ),
-            # Zúženo na 340px
+            # Narrowed to 340px
             class_="floating-menu", style="top: 20px; left: 20px; width: 340px;"
         ),
         ui.div(
@@ -234,26 +234,25 @@ def server(input, output, session):
         sid = selected_st_id()
         if not sid: return ui.div("No station selected")
         
-        # Načtení řádku se statistikami
+        # Load row with statistics
         df_sub = STATIONS_SUMMARY[STATIONS_SUMMARY['ID'].astype(str) == sid]
         if df_sub.empty: return ui.div(f"No data for station {sid}")
         row = df_sub.iloc[0]
         
-        # Výpočet barev boxů přesně podle naší legendy
-        # Používáme klíče 'kge', 'r', 'beta', 'gamma' pro barvy
+        # Calculate box colors based on legend
         c_kge  = _get_color("kge", row['KGE'])
         c_corr = _get_color("r", row['Correlation'])
         c_bias = _get_color("beta", row['Bias'])
         c_var  = _get_color("gamma", row['Variability'])
 
-        # Styl pro vynucení černé barvy textu a barevného pozadí
+        # Style to force black text and colored background
         def box_style(color):
             return f"background-color: {color} !important; color: black !important;"
 
         return ui.div(
             ui.h3(f"Station Analysis: {sid}", style="font-weight: bold; margin-bottom: 15px;"),
             
-            # Horní řada: Čtyři barevné boxy (vše černým písmem)
+            # Top row: Four colored value boxes
             ui.layout_column_wrap(
                 ui.value_box("KGE", f"{row['KGE']:.3f}", style=box_style(c_kge)),
                 ui.value_box("Correlation", f"{row['Correlation']:.3f}", style=box_style(c_corr)),
@@ -264,7 +263,7 @@ def server(input, output, session):
             
             ui.hr(),
             
-            # Dolní řada: Grafy (nezapomenout na output_plot!)
+            # Bottom row: Plots
             ui.layout_column_wrap(
                 ui.card(ui.card_header("Seasonal Cycle"), ui.output_plot("plot_seasonal")),
                 ui.card(ui.card_header("Flow Duration Curve"), ui.output_plot("plot_fdc")),
