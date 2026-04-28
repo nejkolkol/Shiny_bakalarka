@@ -9,6 +9,7 @@ import io, base64, os, json, threading, asyncio
 from shiny import App, ui, render, reactive
 from shinywidgets import output_widget, render_widget
 import ipyleaflet as L
+import plotly.express as px  
 
 # ============================================================
 # 1. DATA LOADING & PATHS
@@ -47,13 +48,14 @@ else:
 
 # Variables available for selection
 all_vars = {}
-if ds_mhm_map: all_vars.update({f"mhm:{v}": f"mHM: {v}" for v in ds_mhm_map.data_vars})
-if ds_mrm_map: all_vars.update({f"mrm:{v}": f"mRM: {v}" for v in ds_mrm_map.data_vars})
+if ds_mhm_map: all_vars.update({f"mhm:{v}": v for v in ds_mhm_map.data_vars})
+if ds_mrm_map: all_vars.update({f"mrm:{v}": v for v in ds_mrm_map.data_vars})
 
 # ============================================================
 # 2. UI DEFINITION
 # ============================================================
 app_ui = ui.page_fillable(
+    ui.head_content(ui.tags.title("DistributedHydroView")),
     ui.tags.style("""
         html, body { margin: 0; padding: 0; height: 100vh; overflow: hidden; font-family: 'Segoe UI', sans-serif; }
         #map_a { height: 100vh !important; width: 100vw !important; position: absolute; top: 0; left: 0; z-index: 1; }
@@ -64,25 +66,25 @@ app_ui = ui.page_fillable(
             box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-height: 90vh; overflow-y: auto; 
         }
 
-        /* Bottom panel alignment between side menus with standardized gaps */
-        .bottom-panel {
-            position: absolute; 
-            bottom: 20px; 
-            left: 380px;  /* Left menu width (340) + margin (20) + gap (20) */
-            right: 300px; /* Right menu width (260) + margin (20) + gap (20) */
-            z-index: 900;
+        .app-brand {
+            font-size: 22px; font-weight: 900; text-align: center; 
+            margin-bottom: 2px; color: #004b87; letter-spacing: -0.5px;
+        }
+        .app-subtitle {
+            font-size: 9px; text-align: center; color: #777; 
+            text-transform: uppercase; letter-spacing: 1.5px; 
+            margin-bottom: 12px; border-bottom: 1px solid #eee; padding-bottom: 8px;
         }
 
-        /* Analysis card with relative height (60% of viewport) */
+        .bottom-panel {
+            position: absolute; bottom: 20px; 
+            left: 380px; right: 300px; z-index: 900;
+        }
+
         .analysis-card {
-            background: rgba(255,255,255,0.96); 
-            border: 1px solid #ccc;
-            border-radius: 8px; 
-            box-shadow: 0 -4px 15px rgba(0,0,0,0.15);
-            padding: 20px; 
-            height: 60vh; 
-            display: flex; 
-            flex-direction: column;
+            background: rgba(255,255,255,0.96); border: 1px solid #ccc;
+            border-radius: 8px; box-shadow: 0 -4px 15px rgba(0,0,0,0.15);
+            padding: 20px; height: 60vh; display: flex; flex-direction: column;
         }
 
         .leaflet-image-layer { image-rendering: pixelated !important; image-rendering: crisp-edges !important; }
@@ -107,10 +109,12 @@ app_ui = ui.page_fillable(
     """),
     ui.div(
         output_widget("map_a"),
-        # LEFT PANEL: Controls and Legends
+        # LEFT PANEL: Controls, Playback, and Legends
         ui.div(
-            ui.div("mHM/mRM Explorer", style="font-size: 18px; font-weight: bold; margin-bottom: 10px; text-align: center;"),
+            ui.div("DistributedHydroView", class_="app-brand"),
+            ui.div("Spatio-temporal Model Explorer", class_="app-subtitle"),
             ui.accordion(
+                # 1. Time and aggregation
                 ui.accordion_panel(
                     "Time & Aggregation",
                     ui.input_date_range("date_range", "Select Period:", start=min_date, end=max_date, min=min_date, max=max_date),
@@ -123,13 +127,21 @@ app_ui = ui.page_fillable(
                     }),
                     ui.input_checkbox("apply_agg_to_map", "Apply aggregation to Map (Slower)", False),
                     ui.output_ui("dynamic_slider"),
+                    ui.div(ui.output_ui("current_date_display"), class_="date-display-box"),
+                ),
+                
+                # 2. Playback
+                ui.accordion_panel(
+                    "Time evolution",
                     ui.div(
                         ui.output_ui("play_pause_button"),
                         ui.input_select("anim_speed", "Speed:", {"0.5": "Slow", "0.2": "Normal", "0.1": "Fast"}, selected="0.2", width="100px"),
                         class_="anim-controls"
                     ),
-                    ui.div(ui.output_ui("current_date_display"), class_="date-display-box"),
+                    ui.div("Controls the map animation timeline.", style="font-size: 10px; color: #777; margin-top: 5px;")
                 ),
+                
+                # 3. LEGEND
                 ui.accordion_panel(
                     "Legends",
                     ui.div(
@@ -138,19 +150,47 @@ app_ui = ui.page_fillable(
                         class_="legend-wrapper"
                     ),
                 ),
-                id="acc_left", multiple=True
+                id="acc_left", 
+                multiple=True,
+                # Define which panels should be open
+                open=["Time & Aggregation", "Legends"]
             ),
             class_="floating-menu", style="top: 20px; left: 20px; width: 340px;"
         ),
         # RIGHT PANEL: Layer Settings
         ui.div(
-            ui.div("Layer Configuration", style="font-size: 16px; font-weight: bold; margin-bottom: 10px;"),
+            
+            
+            ui.input_action_button(
+                "show_about", 
+                "ℹ️ About Application", 
+                class_="btn-outline-primary btn-sm w-100 mb-3"
+    ),
+            ui.div("Layer Configuration", style="font-size: 16px; font-weight: bold; margin-bottom: 10px; border-bottom: 1px solid #ddd;"),
+            
             ui.div("Variable Selection", class_="section-title"),
             ui.input_select("active_layer", "Raster Variable:", all_vars),
+            
+           
+            ui.output_ui("variable_info"),
+            
             ui.hr(),
+            
             ui.div("Gauging Stations", class_="section-title"),
             ui.input_checkbox("show_stations", "Show Gauging Stations", True),
-            ui.input_select("marker_metric", "Color Stations by:", {"kge": "KGE", "r": "Correlation", "beta": "Bias", "gamma": "Variability"}),
+            ui.input_select("marker_metric", "Color Stations by:", {
+                "kge": "KGE", "r": "Correlation", "beta": "Bias", "gamma": "Variability"
+            }),
+            
+           
+            ui.accordion(
+                ui.accordion_panel(
+                    "File Metadata",
+                    ui.output_ui("global_metadata")
+                ),
+                id="acc_meta", open=False
+            ),
+            
             class_="floating-menu", style="top: 20px; right: 20px; width: 260px;"
         ),
         # BOTTOM PANEL: Chart Area
@@ -188,6 +228,77 @@ def server(input, output, session):
         if agg == "ts_month_mean": return da.resample(time="1MS").mean("time")
         if agg == "ts_year_mean": return da.resample(time="1YS").mean("time")
         return da
+        
+    @render.ui
+    def global_metadata():
+        """Extracts global attributes from the NetCDF file for the 'About' section."""
+        prefix, _ = input.active_layer().split(":")
+        ds = ds_mhm_map if prefix == "mhm" else ds_mrm_map
+        
+        attrs = ds.attrs
+        content = []
+        
+        for key in ["title", "history", "contact", "project", "mHM_details"]:
+            if key in attrs:
+                content.append(f"**{key.capitalize()}:** {attrs[key]}")
+        
+        return ui.markdown("\n\n".join(content) if content else "No global metadata found.")    
+        
+    @render.ui
+    def variable_info():
+        """Dynamically extracts metadata from the active NetCDF file."""
+        try:
+            prefix, var_id = input.active_layer().split(":")
+       
+            ds = ds_mhm_map if prefix == "mhm" else ds_mrm_map
+            
+          
+            attrs = ds[var_id].attrs
+            long_name = attrs.get("long_name", "No description available")
+            units = attrs.get("units", "no unit")
+            
+            return ui.div(
+                ui.div(long_name, style="font-weight: bold; font-size: 13px; color: #2c3e50; margin-top: 10px;"),
+                ui.div(f"Unit: {units}", style="font-size: 11px; font-style: italic; color: #007bff;"),
+                style="padding: 10px; background: #f8f9fa; border-radius: 4px; border-left: 3px solid #007bff; margin-top: 5px;"
+            )
+        except Exception as e:
+            return ui.div(f"Metadata unavailable", style="font-size: 11px; color: gray;")
+
+    
+    
+    @reactive.Effect
+    @reactive.event(input.show_about)
+    def _show_about_modal():
+        ui.modal_show(
+            ui.modal(
+                ui.markdown(f"""
+                    ## **DistributedHydroView**
+                    *Spatio-temporal Model Explorer*
+                    
+                    ---
+                    
+                    ### **Core Features**
+                    This application is designed for the **web-based presentation** and analysis of distributed hydrological model results (e.g., mHM, mRM).
+                    
+                    * **Data Exploration:** Visualize 2D spatio-temporal layers from **NetCDF** and **Zarr** files with high performance.
+                    * **Temporal Controls (Left Menu):** Select custom date ranges, apply on-the-fly aggregations (Monthly/Annual means), and run spatial animations.
+                    * **Variable Insights (Right Menu):** Browse available variables with dynamic descriptions and units. Compare model results with **gauging station** observations.
+                    * **On-Click Analysis:** Click anywhere on the map to generate a high-resolution time-series plot for that specific grid cell.
+                    
+                    ### **Technical Background**
+                    Developed at **CzechGlobe** (Global Change Research Institute CAS) using **Shiny for Python**. This tool bridges the gap between complex model outputs and interactive visual analysis.
+                    
+                    ---
+                    **Source Code:** [GitHub Repository](https://github.com/nejkolkol/Shiny_bakalarka)  
+                    **Framework:** Shiny for Python, Xarray, Leaflet.
+                """),
+                title="About Application",
+                size="xl",  
+                easy_close=True, 
+                footer=ui.modal_button("Close")
+            )
+        )
 
     @output
     @render.ui
@@ -276,18 +387,20 @@ def server(input, output, session):
     @output
     @render.ui
     def bottom_analysis_card():
-        """Renders the analysis card containing the 60vh time series plot."""
+        """Renders the analysis card containing the interactive Plotly plot."""
         if not last_click_coords(): return None
         return ui.div(
             ui.div(
                 ui.div(f"Analysis at {last_click_coords()[0]:.4f}N, {last_click_coords()[1]:.4f}", 
                        style="font-weight: bold; flex-grow: 1;"),
+
+                ui.download_button("download_csv", "Download CSV", class_="btn-sm btn-outline-success me-2"),
                 ui.input_action_button("close_graph", "×", class_="btn-lg btn-outline-danger", 
                                        style="border:none; font-size: 28px; line-height: 1; padding: 0;"),
                 style="display: flex; align-items: center; border-bottom: 2px solid #eee; margin-bottom: 10px;"
             ),
-            # Fill the 60vh container height
-            ui.output_plot("raster_ts_plot", height="100%"), 
+        
+            output_widget("raster_ts_plot"), 
             class_="analysis-card"
         )
 
@@ -297,33 +410,80 @@ def server(input, output, session):
         """Clears coordinates to hide the analysis panel."""
         last_click_coords.set(None)
 
-    @render.plot
+    @render_widget
     def raster_ts_plot():
-        """Generates time series plot from statistical Zarr files."""
-        if not last_click_coords(): return None
-        lat, lon = last_click_coords()
+
+        df = active_ts_data()
+
+        if df is None or df.empty:
+            return None
+
         prefix, var = input.active_layer().split(":")
-        ds = ds_mhm_stats if prefix == "mhm" else ds_mrm_stats
-        da_p = ds[var].sel(lat=lat, lon=lon, method="nearest").sel(time=slice(input.date_range()[0], input.date_range()[1]))
-        agg = input.agg_type()
-        
-        fig, ax = plt.subplots(figsize=(14, 7))
-        if agg == "none": 
-            da_p.plot(ax=ax, color="#2c3e50")
-        elif agg == "clim_mean": 
-            da_p.groupby("time.month").mean().plot(ax=ax, marker='o', color='red')
-            ax.set_xticks(range(1, 13))
-        elif agg == "clim_median": 
-            da_p.load().groupby("time.month").median().plot(ax=ax, marker='o', color='green')
-            ax.set_xticks(range(1, 13))
-        elif "ts_month" in agg: 
-            da_p.resample(time="1MS").mean().plot(ax=ax, marker='.')
-        elif "ts_year" in agg: 
-            da_p.resample(time="1YS").mean().plot(ax=ax, marker='s')
-            
-        ax.grid(True, alpha=0.3)
-        plt.tight_layout()
+        unit = (
+            ds_mhm_map if prefix == "mhm" else ds_mrm_map
+        )[var].attrs.get("units", "-")
+
+        import plotly.graph_objects as go
+
+        x_col = 'month' if 'month' in df.columns else 'time'
+
+        if 'year' in df.columns:
+            x_col = 'year'
+
+
+        if x_col == "time":
+
+            df["time"] = (
+                pd.to_datetime(df["time"])
+                .dt.strftime("%Y-%m-%d")
+            )
+
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=df[x_col],
+                y=df["value"],
+                mode="lines",
+                name=var,
+                line=dict(color='#004b87', width=1.5),
+                hovertemplate="<b>%{x|%Y-%m-%d}</b><br>Value: %{y:.3f}<extra></extra>"
+            )
+        )
+
+
+        if x_col == "time":
+            fig.update_xaxes(
+                type='date',
+                nticks=15, 
+                automargin=True,
+                ticks="outside",
+                tickangle=-45 
+            )
+        else:
+
+            fig.update_xaxes(
+                type='linear',
+                dtick=1 if x_col == 'month' else None, 
+                nticks=20
+            )
+
+        fig.update_layout(
+            template="plotly_white",
+            height=400,
+            margin=dict(l=10, r=10, t=30, b=50), 
+            yaxis_title=f"{var} [{unit}]",
+            xaxis_title=None,
+            hovermode="x unified"
+        )
+
         return fig
+
+    @render.download(filename=lambda: f"data_{input.active_layer().replace(':', '_')}.csv")
+    async def download_csv():
+        df = active_ts_data()
+        if df is not None:
+            yield df.to_csv(index=False)
 
     # --- HELPERS AND LEGENDS ---
     def get_metric_config(metric):
@@ -350,6 +510,31 @@ def server(input, output, session):
         for _, color, label in cfg["bins"]:
             items.append(ui.div(ui.div(class_="legend-dot", style=f"background-color: {color} !important;"), ui.span(label), class_="legend-item"))
         return ui.div(*items, class_="legend-container")
+        
+    @reactive.Calc
+    def active_ts_data():
+        """Calculates data for both the plot and CSV export with explicit types."""
+        if not last_click_coords(): return None
+        lat, lon = last_click_coords()
+        prefix, var = input.active_layer().split(":")
+        ds = ds_mhm_stats if prefix == "mhm" else ds_mrm_stats
+        da_p = ds[var].sel(lat=lat, lon=lon, method="nearest").sel(time=slice(input.date_range()[0], input.date_range()[1]))
+        
+        agg = input.agg_type()
+        if agg == "clim_mean": 
+            da_p = da_p.groupby("time.month").mean()
+        elif "ts_month" in agg: 
+            da_p = da_p.resample(time="1MS").mean()
+        elif "ts_year" in agg: 
+            da_p = da_p.resample(time="1YS").mean()
+        
+        df = da_p.compute().to_dataframe(name="value").reset_index()
+        
+
+        if 'time' in df.columns:
+            df['time'] = pd.to_datetime(df['time'])
+            
+        return df
 
     @output
     @render.ui
